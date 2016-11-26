@@ -54,4 +54,23 @@ public class Cell {
     public void setValue(int value) {
         this.value = value;
     }
+    
+    @Override
+    public boolean equals(Object o){
+    	if(o == this)
+    		return true;
+    	
+    	if(!(o instanceof Cell) )
+    		return false;
+    	
+    	Cell newcell = (Cell)o;
+    	
+    	return newcell.x == this.x && newcell.y == this.y && newcell.z == this.z;
+    }
+    
+    @Override
+    public int hashCode(){
+    	String hashStr = this.x + "" + this.y + "" + this.z;
+    	return Integer.parseInt(hashStr);
+    }
 }
