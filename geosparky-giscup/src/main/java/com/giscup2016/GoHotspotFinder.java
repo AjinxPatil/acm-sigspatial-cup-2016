@@ -3,7 +3,6 @@ package com.giscup2016;
 import org.apache.spark.SparkConf;
 import org.apache.spark.api.java.JavaRDD;
 import org.apache.spark.api.java.JavaSparkContext;
-import scala.Tuple4;
 
 /**
  * GoHotspotFinder
@@ -13,14 +12,14 @@ import scala.Tuple4;
  * @since 1.0
  */
 public class GoHotspotFinder {
-    private static boolean isPointValid(final String line, final Tuple4<Double, Double, Double, Double> envelope) {
+    private static boolean isPointValid(final String line) {
         final String[] columns = line.split(",");
         final Double longi = Double.valueOf(columns[5]);
         final Double lat = Double.valueOf(columns[6]);
-        if (longi < envelope._1() || longi > envelope._2()) {
+        if (longi < GoHostspotConstants.MIN_LONGI || longi > GoHostspotConstants.MAX_LONGI) {
             return false;
         }
-        if (lat < envelope._3() || lat > envelope._4()) {
+        if (lat < GoHostspotConstants.MIN_LAT || lat > GoHostspotConstants.MAX_LAT) {
             return false;
         }
         return true;
@@ -35,17 +34,14 @@ public class GoHotspotFinder {
 
         final int x = (int) ((GoHostspotConstants.MAX_LONGI - longi) / GoHostspotConstants.CELL_X);
         final int y = (int) ((GoHostspotConstants.MAX_LAT - lat) / GoHostspotConstants.CELL_Y);
-        final int z = Integer.valueOf(day);
+        final int z = Integer.parseInt(day);
         return new Cell(x, y, z);
     }
 
     public static void main(String[] args) {
         final SparkConf conf = new SparkConf().setAppName("geospark-giscup");
         final JavaSparkContext sc = new JavaSparkContext(conf);
-        Tuple4<Double, Double, Double, Double> envelope = new Tuple4<>(GoHostspotConstants.MIN_LONGI,
-                GoHostspotConstants.MAX_LONGI, GoHostspotConstants.MIN_LAT, GoHostspotConstants.MAX_LAT);
-
-        final JavaRDD<Cell> cabdata = sc.textFile("input").filter(line -> isPointValid(line, envelope)).map(line ->
+        final JavaRDD<Cell> cabdata = sc.textFile("input").filter(line -> isPointValid(line)).map(line ->
                 constructCell(line));
     }
 }
