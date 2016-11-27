@@ -19,6 +19,7 @@ public class GeoHotspotLocator {
                 .mapToPair(line -> new Tuple2<>(createCell(line), 1)).reduceByKey((x, y) -> x + y);
         final Double s = calculateSValue(cellAttrs);
         final JavaPairRDD<Cell, Integer> cellNetAttrValues = calculateCellNetAttrValue(cellAttrs);
+        final JavaPairRDD<Cell, Integer> cellNeighborCount = calculateCellNeighborCount(cellAttrs);
 
         cellAttrs.saveAsTextFile("output");
         sc.close();
@@ -43,10 +44,34 @@ public class GeoHotspotLocator {
         return neighborAttrValueList;
     }
 
+    private static Integer getCellNeighborCount(final Cell cell) {
+        final int rows = GeoHotspotConstants.countGridRows();
+        final int columns = GeoHotspotConstants.countGridColumns();
+        final List<Tuple2<Cell, Integer>> neighborAttrValueList = new ArrayList<>();
+        final int x = cell.getX();
+        final int y = cell.getY();
+        final int z = cell.getZ();
+        int count = 0;
+        for (int i = x - 1; i <= x + 1; i++) {
+            for (int j = y - 1; j <= y + 1; j++) {
+                for (int k = z - 1; k <= z + 1; k++) {
+                    if (i >= 0 && i <= rows && j >= 0 && j <= columns && k >= 1 && k <= GeoHotspotConstants.DAYS_MAX) {
+                        count++;
+                    }
+                }
+            }
+        }
+        return count;
+    }
+
     private static JavaPairRDD<Cell, Integer> calculateCellNetAttrValue(final JavaPairRDD<Cell, Integer> cellAttrs) {
         final JavaPairRDD<Cell, Integer> neighborAttrValueRdd = cellAttrs.flatMapToPair(a ->
                 getCellNeighborAttrValueList(a._1(), a._2()).iterator());
         return neighborAttrValueRdd.reduceByKey((a, b) -> a + b);
+    }
+
+    private static JavaPairRDD<Cell, Integer> calculateCellNeighborCount(final JavaPairRDD<Cell, Integer> cellAttrs) {
+        return cellAttrs.mapToPair(a -> new Tuple2<>(a._1(), getCellNeighborCount(a._1())));
     }
 
 
