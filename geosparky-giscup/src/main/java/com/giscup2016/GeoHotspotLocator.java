@@ -3,7 +3,6 @@ package com.giscup2016;
 import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.Iterator;
 import java.util.List;
 
 import org.apache.spark.SparkConf;
@@ -33,10 +32,10 @@ public class GeoHotspotLocator {
 	
     public static void main(String[] args) {
         // TODO: Remove config
-        final SparkConf conf = new SparkConf().setAppName("geosparky-giscup")
-                .setMaster("local[1]").set("spark.driver.host", "127.0.0.1");
+        final SparkConf conf = new SparkConf().setAppName("geosparky-giscup");
+                //.setMaster("local[1]").set("spark.driver.host", "127.0.0.1");
         final JavaSparkContext sc = new JavaSparkContext(conf);
-        final JavaPairRDD<Cell, Long> cellAttrs = sc.textFile("yellow_tripdata_2015-01.csv").filter(line -> isPointValid(line))
+        final JavaPairRDD<Cell, Long> cellAttrs = sc.textFile(args[0]).filter(line -> isPointValid(line))
                 .mapToPair(line -> new Tuple2<>(createCell(line), 1L)).reduceByKey((x, y) -> x + y);
         final Double s = calculateSValue(cellAttrs);
         final Broadcast<Double> broadcastS = sc.broadcast(s);
@@ -47,10 +46,8 @@ public class GeoHotspotLocator {
         final JavaPairRDD<Cell, Double> getisOrd = cellNetAttrValues.mapToPair(a -> calculateGetisOrd(a, broadcastS,
                 broadcastXBar, broadcastN));
         List<Tuple2<Cell, Double>> getisOrdTopFifty = getisOrd.top(50, new GetisOrdComparator());
-        Iterator<Tuple2<Cell,Double>> it = getisOrdTopFifty.iterator();
-        while(it.hasNext())
-        	System.out.println(it.next().toString());
-        getisOrd.saveAsTextFile("output");
+        final JavaRDD<Tuple2<Cell, Double>> getisOrd50 = sc.parallelize(getisOrdTopFifty);
+        getisOrd50.saveAsTextFile(args[1]);
         sc.close();
     }
 
@@ -83,7 +80,7 @@ public class GeoHotspotLocator {
         final JavaRDD<Long> attrValues = cellAttrValues.map(a -> a._2());
         final Long netAttr = attrValues.reduce((a, b) -> a + b);
         final Integer gridCellCount = GeoHotspotConstants.gridCells();
-        final Long netAttrSquared = attrValues.reduce((a, b) -> a + b * b);
+        final Long netAttrSquared = attrValues.map(a -> a * a).reduce((a, b) -> a + b);
         return Math.sqrt(netAttrSquared / (1.0 * gridCellCount) - Math.pow(netAttr / (1.0 * gridCellCount), 2));
     }
 

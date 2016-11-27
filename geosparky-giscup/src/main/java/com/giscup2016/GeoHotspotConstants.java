@@ -17,7 +17,8 @@ public class GeoHotspotConstants {
     public static final double CELL_Z = 1;
 
     public static int gridRows() {
-        return (int) ((LONGITUDE_MAX - LONGITUDE_MIN) / CELL_X);
+    	return (int) ((LONGITUDE_MAX - LONGITUDE_MIN) / CELL_X);
+        
     }
 
     public static int gridColumns() {
@@ -25,8 +26,12 @@ public class GeoHotspotConstants {
     }
 
     public static int gridCells() {
-        final int rows = (int) ((LONGITUDE_MAX - LONGITUDE_MIN) / CELL_X);
-        final int columns = (int) ((LATITUDE_MAX - LATITUDE_MIN) / CELL_Y);
+        final int rows = (int) Math.round(100 * (LONGITUDE_MAX - LONGITUDE_MIN));
+        final int columns = (int) Math.round(100.0 * (LATITUDE_MAX - LATITUDE_MIN));
         return rows * columns * DAYS_MAX;
+    }
+    
+    public static void main(String[] args) {
+    	System.out.println(gridRows() + ", " + gridColumns());
     }
 }
