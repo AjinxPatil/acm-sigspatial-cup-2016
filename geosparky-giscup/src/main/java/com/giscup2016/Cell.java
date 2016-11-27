@@ -1,5 +1,7 @@
 package com.giscup2016;
 
+import java.io.Serializable;
+
 /**
  * Cell
  *
@@ -7,7 +9,7 @@ package com.giscup2016;
  * @version 1.0
  * @since 1.0
  */
-public class Cell {
+public class Cell implements Serializable {
     private int x;
     private int y;
     private int z;
