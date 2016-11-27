@@ -1,0 +1,326 @@
+
+# -*- mode: ruby -*-
+# vi: set ft=ruby :
+
+############################################ Fall 2016 DDS PROJECT #####################################
+#                           SPARK ENVIRONMENT SETUP 								   				   #
+#																					   				   #
+# reference: https://blog.codecentric.de/en/2016/04/calculating-pi-apache-spark/       				   #
+# reference: http://pingax.com/install-apache-hadoop-ubuntu-cluster-setup/			   				   #
+# reference: https://www.digitalocean.com/community/tutorials/introduction-to-ganglia-on-ubuntu-14-04  #
+# team: geosparky																	   				   #
+########################################################################################################
+
+############################## CONFIGURATION VARIABLES #################################################
+
+# cluster details
+$cluster_name = "geosparky-cluster"
+$cluster_master_name = "geosparky-master"
+$cluster_master_ip = "192.168.200.10"
+$cluster_worker_name_prefix = "geosparky-worker"
+$cluster_worker_instances_count = 2
+$cluster_worker_ram = 2048
+$cluster_master_ram = 1536
+# Ganglia
+$ganglia_port = 8649
+
+# OS to be used - trusty64 = Ubuntu 14.04 x64
+$vm_box_name = "ubuntu/trusty64"
+
+# COMMON FOLDER LOCATIONS
+$vagrant_home = "/home/vagrant"
+$resources = "/vagrant/resources"
+
+# JDK
+$java_home_path = "/opt/jdk/"
+$java_home_folder = "jdk1.8.0_111"
+$java_home = $java_home_path+$java_home_folder
+$jdk_setup_file_name = "jdk-8u111-linux-x64.tar.gz"
+$jdk_setup_file = $resources+"/"+$jdk_setup_file_name
+
+$tar_gz = ".tar.gz"
+$tgz = ".tgz"
+
+# SPARK
+$spark_original_folder_name = "spark-2.0.1-bin-hadoop2.6"
+$spark_setup_file_name = $spark_original_folder_name+$tgz
+$spark_setup_file = $resources+"/"+$spark_setup_file_name
+$spark_new_folder_name = "spark"
+$spark_home = $vagrant_home+"/"+$spark_new_folder_name
+
+# HADOOP
+$hadoop_original_folder_name = "hadoop-2.6.5"
+$hadoop_setup_file_name = $hadoop_original_folder_name+$tar_gz
+$hadoop_setup_file = $resources+"/"+$hadoop_setup_file_name
+$hadoop_new_folder_name = "hadoop"
+$hadoop_home = $vagrant_home+"/"+$hadoop_new_folder_name
+$hadoop_temp_dir = "/usr/local/hadoop_tmp"
+
+
+########################################################################################################
+
+# set up spark, java and related environment variables
+$vm_jdk_common_setup = "sudo mkdir #{$java_home_path}
+  sudo tar -zxf #{$jdk_setup_file} -C #{$java_home_path}
+  sudo update-alternatives --install /usr/bin/java java #{$java_home}/bin/java 100
+  update-alternatives --install /usr/bin/javac javac #{$java_home}/bin/javac 100
+  echo 'export JAVA_HOME=#{$java_home}' >> .bashrc"
+
+$vm_spark_common_setup = "tar -zxf #{$spark_setup_file} -C #{$vagrant_home}
+  mv #{$spark_original_folder_name} #{$spark_new_folder_name}
+  sudo chown -R vagrant:vagrant #{$spark_new_folder_name}
+  echo 'export SPARK_HOME=#{$spark_home}' >> .bashrc"
+
+$vm_hadoop_common_setup = "
+  tar -zxf #{$hadoop_setup_file} -C #{$vagrant_home}
+  mv #{$hadoop_original_folder_name} #{$hadoop_new_folder_name}
+  sudo chown -R vagrant:vagrant #{$hadoop_new_folder_name}
+  sed -i 's,\${JAVA_HOME},#{$java_home},' #{$hadoop_home}/etc/hadoop/hadoop-env.sh
+  sed -i 's,<configuration>,<configuration><property><name>fs.default.name</name><value>hdfs://#{$cluster_master_name}:9000</value></property>,' #{$hadoop_home}/etc/hadoop/core-site.xml
+  cp #{$hadoop_home}/etc/hadoop/mapred-site.xml.template #{$hadoop_home}/etc/hadoop/mapred-site.xml
+  sed -i 's,<configuration>,<configuration><property><name>mapred.job.tracker</name><value>#{$cluster_master_name}:54311</value></property> <property><name>mapreduce.framework.name</name><value>yarn</value></property>,' #{$hadoop_home}/etc/hadoop/mapred-site.xml
+  sed -i 's,<configuration>,<configuration><property><name>dfs.replication</name><value>3</value></property> <property><name>dfs.namenode.name.dir</name><value>file:#{$hadoop_temp_dir}/hdfs/namenode</value></property> <property><name>dfs.datanode.data.dir</name><value>file:#{$hadoop_temp_dir}/hdfs/datanode</value></property>,' #{$hadoop_home}/etc/hadoop/hdfs-site.xml
+  sed -i 's,<configuration>,<configuration><property><name>yarn.nodemanager.aux-services</name><value>mapreduce_shuffle</value></property> <property><name>yarn.nodemanager.aux-services.mapreduce.shuffle.class</name><value>org.apache.hadoop.mapred.ShuffleHandler</value></property> <property><name>yarn.resourcemanager.resource-tracker.address</name><value>#{$cluster_master_name}:8025</value></property> <property><name>yarn.resourcemanager.scheduler.address</name><value>#{$cluster_master_name}:8035</value></property> <property><name>yarn.resourcemanager.address</name><value>#{$cluster_master_name}:8050</value></property>,' #{$hadoop_home}/etc/hadoop/yarn-site.xml
+  echo 'export HADOOP_HOME=#{$hadoop_home}' >> .bashrc
+  echo 'export PATH=\$PATH:\$HADOOP_HOME/bin' >> .bashrc
+  echo 'export PATH=\$PATH:\$HADOOP_HOME/sbin' >> .bashrc
+  echo 'export HADOOP_MAPRED_HOME=\$HADOOP_HOME' >> .bashrc
+  echo 'export HADOOP_COMMON_HOME=\$HADOOP_HOME' >> .bashrc
+  echo 'export HADOOP_HDFS_HOME=\$HADOOP_HOME' >> .bashrc
+  echo 'export YARN_HOME=\$HADOOP_HOME' >> .bashrc
+  echo 'export HADOOP_COMMON_LIB_NATIVE_DIR=\$HADOOP_HOME/lib/native' >> .bashrc
+  echo 'export HADOOP_OPTS=\"-Djava.library.path=\$HADOOP_HOME/lib\"' >> .bashrc"
+
+$vm_dependencies_setup_commands = "sudo timedatectl set-timezone America/Phoenix; #{$vm_jdk_common_setup}; #{$vm_hadoop_common_setup}; #{$vm_spark_common_setup};"
+
+# set up ganglia on master
+$vm_ganglia_master_setup = "DEBIAN_FRONTEND=noninteractive apt-get -y install apache2 rrdtool gmetad ganglia-webfrontend ganglia-monitor
+  cp /etc/ganglia-webfrontend/apache.conf /etc/apache2/sites-enabled/ganglia.conf
+  sudo usermod -aG sudo ganglia
+  service ganglia-monitor restart && sudo service gmetad restart && sudo service apache2 restart"
+
+# set up ganglia on worker
+$vm_ganglia_worker_setup = "sudo apt-get install -y ganglia-monitor
+  sudo usermod -aG sudo ganglia
+  sudo service ganglia-monitor restart"
+
+# function to add commands to the spark environment file
+def appendToSparkEnvFileCmd(s)
+  return "echo '%s' >> #{$spark_home}/conf/spark-env.sh" % [s]
+end
+
+# return the name of the given worker
+def workername(i)
+  workername = "%s-%02d" % [$cluster_worker_name_prefix, i]
+  return workername
+end
+
+# All Vagrant configuration is done below. The "2" in Vagrant.configure
+# configures the configuration version (we support older styles for
+# backwards compatibility). Please don't change it unless you know what
+# you're doing.
+Vagrant.configure(2) do |config|
+  vm_names = Array.new()
+  vm_names.push($cluster_master_name)
+
+  vm_static_ips = Array.new()
+  vm_static_ips.push($cluster_master_ip)
+
+  # Create and set worker machines
+  (1..$cluster_worker_instances_count).each do |instance_number|
+  	vm_name = workername(instance_number)
+  	vm_names.push(vm_name)
+
+  	vm_static_ip = "192.168.200.%d" % [10 + instance_number]
+  	vm_static_ips.push(vm_static_ip)
+
+	# configure each new worker node being created
+  	config.vm.define(vm_name) do |new_vm_config|
+  		new_vm_config.vm.box = $vm_box_name
+  		new_vm_config.vm.hostname = vm_name
+  		new_vm_config.vm.network "private_network", ip: vm_static_ip
+  		webui_port = "8080"
+  		new_vm_config.vm.provider :virtualbox do |vb|
+  			vb.name = vm_name
+  			vb.memory = $cluster_worker_ram 
+  			vb.cpus = 1
+  			vb.customize ["modifyvm", :id, "--nic2", "hostonly"]
+  			vb.customize ["modifyvm", :id ,"--nicpromisc2", "allow-all"]
+  		end
+
+      new_vm_config.vm.provision "shell",
+	       inline: $vm_dependencies_setup_commands
+
+  		new_vm_config.vm.provision "shell",
+	       inline: "source .profile; cp #{$spark_home}/conf/spark-env.sh.template #{$spark_home}/conf/spark-env.sh; #{appendToSparkEnvFileCmd('SPARK_MASTER_IP=%s')}; #{appendToSparkEnvFileCmd('SPARK_LOCAL_IP=%s')}; #{appendToSparkEnvFileCmd('SPARK_WORKER_WEBUI_PORT=%s')}" % [$cluster_master_ip, vm_static_ip, webui_port],
+    		 privileged: true
+
+		new_vm_config.vm.provision "shell",
+			inline: "echo '%s %s' >> /etc/hosts" % [$cluster_master_ip, $cluster_master_name],
+			 privileged: true
+
+		new_vm_config.vm.provision "shell", inline: "bash #{$resources}/ganglia.sh",
+			privileged: true
+		
+		$worker_hadoop_configuration = "sudo mkdir -p #{$hadoop_temp_dir}
+		sudo mkdir -p #{$hadoop_temp_dir}/hdfs/datanode
+		sudo chown vagrant:vagrant -R #{$hadoop_temp_dir}"
+
+		new_vm_config.vm.provision "shell",
+			inline: $worker_hadoop_configuration,
+			privileged: false
+     # Configure SSH
+    new_vm_config.vm.provision "shell",
+		inline: "sudo apt-get install sshpass"
+    
+    new_vm_config.vm.provision "shell",
+		inline: "rm -f #{$vagrant_home}/.ssh/id_dsa*; chown -R vagrant #{$vagrant_home}/.ssh"
+    
+    new_vm_config.vm.provision "shell", 
+		inline: "ssh-keygen -t rsa -P '' -f #{$vagrant_home}/.ssh/id_dsa",
+		privileged: false
+
+    new_vm_config.vm.provision "shell",
+		inline: "cat #{$vagrant_home}/.ssh/id_dsa.pub >> #{$vagrant_home}/.ssh/authorized_keys",
+		privileged: false
+		
+		new_vm_config.vm.provision "shell",
+		inline: "cp /vagrant/resources/ssh-slave.sh /home/vagrant/",
+		privileged: false
+
+    end
+   end
+
+  # Configure master VM settings
+  config.vm.define($cluster_master_name) do |geosparkymaster|
+    geosparkymaster.vm.box = $vm_box_name
+    geosparkymaster.vm.hostname = $cluster_master_name
+    geosparkymaster.vm.network "private_network", ip: $cluster_master_ip
+
+    geosparkymaster.vm.provider :virtualbox do |vb|
+      vb.name = $cluster_master_name
+      vb.memory = $cluster_master_ram 
+      vb.cpus = 1
+      vb.customize ["modifyvm", :id, "--nic2", "hostonly"]
+      vb.customize ["modifyvm", :id, "--nicpromisc2", "allow-all"]
+    end
+
+	vm_static_ips_with_worker_name = vm_static_ips.each_with_index.map { |ip,i|
+		[ip, vm_names[i]]
+	}
+
+    # Add all IPs to the hosts file of the master
+    vm_static_ips_with_worker_name.each do |ip, name|
+        geosparkymaster.vm.provision "shell",
+          inline: "echo '%s %s' >> /etc/hosts" % [ip, name]
+    end
+
+    # Configure SSH
+    geosparkymaster.vm.provision "shell",
+		inline: "sudo apt-get install sshpass"
+    
+    geosparkymaster.vm.provision "shell",
+		inline: "rm -f #{$vagrant_home}/.ssh/id_dsa*; chown -R vagrant #{$vagrant_home}/.ssh"
+    
+    geosparkymaster.vm.provision "shell", 
+		inline: "ssh-keygen -t rsa -P '' -f #{$vagrant_home}/.ssh/id_dsa",
+		privileged: false
+
+    geosparkymaster.vm.provision "shell",
+		inline: "cat #{$vagrant_home}/.ssh/id_dsa.pub >> #{$vagrant_home}/.ssh/authorized_keys",
+		privileged: false
+
+    vm_static_ips.each do |ip|
+      geosparkymaster.vm.provision "shell",
+        inline: "sshpass -p 'vagrant' ssh-copy-id -o 'StrictHostKeyChecking no' -i #{$vagrant_home}/.ssh/id_dsa.pub vagrant@%s 2> /dev/null" % [ip],
+        privileged: false
+    end
+
+    vm_static_ips_with_worker_name.each do |ip, name|
+		ssh_pass_ip_cmd = "sshpass -p 'vagrant' ssh-copy-id -o 'StrictHostKeyChecking no' -i #{$vagrant_home}/.ssh/id_dsa.pub vagrant@%s 2> /dev/null" % [ip]
+      ssh_pass_name_cmd = "sshpass -p 'vagrant' ssh-copy-id -o 'StrictHostKeyChecking no' -i #{$vagrant_home}/.ssh/id_dsa.pub vagrant@%s 2> /dev/null" % [name]
+      ssh_pass_both_cmd = "#{ssh_pass_ip_cmd}; #{ssh_pass_name_cmd}"
+
+      geosparkymaster.vm.provision "shell",
+        inline: ssh_pass_both_cmd,
+        privileged: false
+    end
+
+    geosparkymaster.vm.provision "shell",
+       inline: $vm_dependencies_setup_commands
+
+	master_hadoop_configuration = "sudo mkdir -p #{$hadoop_temp_dir}
+	sudo mkdir -p #{$hadoop_temp_dir}/hdfs/namenode
+	sudo chown vagrant:vagrant -R #{$hadoop_temp_dir}"
+
+	geosparkymaster.vm.provision "shell",
+	       inline: master_hadoop_configuration,
+			privileged: false
+	
+	hdfs_add_slaves_cmd = (1..$cluster_worker_instances_count).map { |i| "echo '\n#{workername(i)}' >> #{$hadoop_home}/etc/hadoop/slaves" }.join(";")
+	# Add slaves for HDFS
+	geosparkymaster.vm.provision "shell",
+		inline: "#{hdfs_add_slaves_cmd}",
+		privileged: false
+
+	# Format HDFS
+	geosparkymaster.vm.provision "shell",
+		inline: "#{$hadoop_home}/bin/hdfs namenode -format",
+		privileged: false
+
+
+    # Cofigure slaves.sh
+    remove_localhost_cmd = "source .profile; sed -i '/localhost/d' #{$spark_home}/conf/slaves"
+    cp_slaves_file_cmd = "source .profile; cp #{$spark_home}/conf/slaves.template #{$spark_home}/conf/slaves"
+    add_slaves_cmd = (1..$cluster_worker_instances_count).map { |i| "echo '\n#{workername(i)}' >> #{$spark_home}/conf/slaves" }.join(";")
+	
+    geosparkymaster.vm.provision "shell",
+        inline: "#{cp_slaves_file_cmd}; #{remove_localhost_cmd}; #{add_slaves_cmd}",
+  	    privileged: true
+	
+      # Set env.sh
+	geosparkymaster.vm.provision "shell",
+		inline: "source .profile; cp #{$spark_home}/conf/spark-env.sh.template #{$spark_home}/conf/spark-env.sh; #{appendToSparkEnvFileCmd('SPARK_MASTER_IP=%s')}; #{appendToSparkEnvFileCmd('SPARK_LOCAL_IP=%s')}" % [$cluster_master_ip, $cluster_master_ip],
+		privileged: true
+
+	geosparkymaster.vm.provision "shell",
+		inline: "source .profile; mkdir -p /tmp/spark-events",
+		privileged: false
+
+	# Commented out the below line in /etc/hosts since it was preventing workers from connecting to master
+	geosparkymaster.vm.provision "shell",
+		inline: "sed -i 's/127.0.1.1/#127.0.1.1/' /etc/hosts",
+		privileged: true
+	geosparkymaster.vm.provision "shell",
+		inline: "sed -i '/127.0.0.1.#{$cluster_master_name}/d' /etc/hosts",
+		privileged: true
+
+	# start the hadoop cluster
+	geosparkymaster.vm.provision "shell", run: 'always',
+		inline: "#{$hadoop_home}/sbin/start-dfs.sh",
+		privileged: false
+	geosparkymaster.vm.provision "shell", run: 'always',
+		inline: "#{$hadoop_home}/sbin/start-yarn.sh",
+		privileged: false
+
+	# start the spark cluster
+	geosparkymaster.vm.provision "shell", run: 'always',
+        inline: "sh #{$spark_home}/sbin/start-all.sh",
+        privileged: false	
+
+	# start ganglia and restart worker monitors
+	geosparkymaster.vm.provision "shell", run: 'always',
+			inline: "bash #{$resources}/ganglia.sh",
+			privileged: true
+        
+    worker_commands = (1..$cluster_worker_instances_count).map { |i| "ssh #{workername(i)} sudo service ganglia-monitor restart" }.join(";")
+    geosparkymaster.vm.provision "shell", run: 'always',
+        inline: "#{worker_commands}; ",
+  	    privileged: false 
+  	    
+    bidirectional_ssh = (1..$cluster_worker_instances_count).map { |i| "ssh #{workername(i)} \"bash -s\" < /vagrant/resources/ssh-slave.sh" }.join(";")
+    geosparkymaster.vm.provision "shell",
+        inline: "#{bidirectional_ssh}; ",
+  	    privileged: false 
+  end
+end

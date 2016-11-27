@@ -1,0 +1,14 @@
+LINKS FOR RESOURCES:
+=====================
+
+SPARK
+------
+http://d3kbcqa49mib13.cloudfront.net/spark-2.0.1-bin-hadoop2.6.tgz
+
+HADOOP
+-------
+http://www-us.apache.org/dist/hadoop/common/hadoop-2.6.5/hadoop-2.6.5.tar.gz
+
+JDK 1.8
+--------
+http://download.oracle.com/otn-pub/java/jdk/8u111-b14/jdk-8u111-linux-x64.tar.gz
