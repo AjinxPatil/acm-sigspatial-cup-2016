@@ -1,13 +1,15 @@
 package com.giscup2016;
 
+import java.util.ArrayList;
+import java.util.List;
+
 import org.apache.spark.SparkConf;
 import org.apache.spark.api.java.JavaPairRDD;
 import org.apache.spark.api.java.JavaRDD;
 import org.apache.spark.api.java.JavaSparkContext;
-import scala.Tuple2;
+import org.apache.spark.broadcast.Broadcast;
 
-import java.util.ArrayList;
-import java.util.List;
+import scala.Tuple2;
 
 public class GeoHotspotLocator {
     public static void main(String[] args) {
@@ -18,9 +20,14 @@ public class GeoHotspotLocator {
         final JavaPairRDD<Cell, Integer> cellAttrs = sc.textFile("input").filter(line -> isValid(line))
                 .mapToPair(line -> new Tuple2<>(createCell(line), 1)).reduceByKey((x, y) -> x + y);
         final Double s = calculateSValue(cellAttrs);
+        Broadcast<Double> broadcastS = sc.broadcast(s);
         final JavaPairRDD<Cell, Integer> cellNetAttrValues = calculateCellNetAttrValue(cellAttrs);
         final JavaPairRDD<Cell, Integer> cellNeighborCount = calculateCellNeighborCount(cellAttrs);
-
+        final Integer xBar = calculateXBar(cellAttrs);
+        Broadcast<Integer> broadcastXBar = sc.broadcast(xBar);
+        Broadcast<Integer> broadcastN = sc.broadcast(GeoHotspotConstants.countGridCells());
+        final JavaPairRDD<Cell, Tuple2<Integer, Integer>> getisOrdParameters = cellNeighborCount.join(cellNetAttrValues); 
+        
         cellAttrs.saveAsTextFile("output");
         sc.close();
     }
@@ -47,7 +54,6 @@ public class GeoHotspotLocator {
     private static Integer getCellNeighborCount(final Cell cell) {
         final int rows = GeoHotspotConstants.countGridRows();
         final int columns = GeoHotspotConstants.countGridColumns();
-        final List<Tuple2<Cell, Integer>> neighborAttrValueList = new ArrayList<>();
         final int x = cell.getX();
         final int y = cell.getY();
         final int z = cell.getZ();
@@ -82,8 +88,13 @@ public class GeoHotspotLocator {
         final Integer netAttrSquared = attrValues.reduce((a, b) -> a + b * b);
         return Math.sqrt(netAttrSquared / gridCellCount - Math.pow(netAttr / gridCellCount, 2));
     }
+    
+    private static Integer calculateXBar(JavaPairRDD<Cell, Integer> cellAttrValues) {
+    	return ((cellAttrValues.map(a -> a._2()).reduce((a, b) -> a + b))/GeoHotspotConstants.countGridCells());
+    }
+    
 
-    public static boolean isValid(String line) {
+    private static boolean isValid(String line) {
         String[] input = line.split(",");
         double latitude = Double.parseDouble(input[6]);
         double longitude = Double.parseDouble(input[5]);
@@ -91,7 +102,7 @@ public class GeoHotspotLocator {
                 && longitude >= GeoHotspotConstants.MIN_LONGITUDE && longitude <= GeoHotspotConstants.MAX_LONGITUDE);
     }
 
-    public static Cell createCell(String line) {
+    private static Cell createCell(String line) {
         String[] input = line.split(",");
         double lat = Double.parseDouble(input[6]);
         int latitude = (int) Math.floor(100.0 * (lat - GeoHotspotConstants.MIN_LATITUDE));
