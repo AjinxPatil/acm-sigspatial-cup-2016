@@ -26,7 +26,8 @@ public class GeoHotspotLocator {
         final Integer xBar = calculateXBar(cellAttrs);
         Broadcast<Integer> broadcastXBar = sc.broadcast(xBar);
         Broadcast<Integer> broadcastN = sc.broadcast(GeoHotspotConstants.countGridCells());
-        final JavaPairRDD<Cell, Tuple2<Integer, Integer>> getisOrdParameters = cellNeighborCount.join(cellNetAttrValues); 
+        // TODO: Change RDD Name cellNetAttrValues to new RDD
+        //final JavaPairRDD<Cell, Double> getisOrd = cellNetAttrValues.map(a -> calculateGetisOrd(a, broadcastS, broadcastXBar, broadcastN)); 
         
         cellAttrs.saveAsTextFile("output");
         sc.close();
@@ -93,6 +94,14 @@ public class GeoHotspotLocator {
     	return ((cellAttrValues.map(a -> a._2()).reduce((a, b) -> a + b))/GeoHotspotConstants.countGridCells());
     }
     
+    private static Tuple2<Cell, Double> calculateGetisOrd(final Tuple2<Cell, Integer> getisOrdParameters, 
+    		Broadcast<Double> broadcastS, Broadcast<Integer> broadcastXBar, Broadcast<Integer> broadcastN) {
+    	final Integer numberOfNeighbours = getisOrdParameters._1().getNn();
+    	final Double getisOrd = (getisOrdParameters._2() - (broadcastXBar.value() * numberOfNeighbours)) /
+    			(broadcastS.value() * Math.sqrt(((broadcastN.value() * numberOfNeighbours) - (numberOfNeighbours * numberOfNeighbours)) / 
+    					(broadcastN.value() - 1)));
+    	return new Tuple2<Cell, Double>(getisOrdParameters._1(), getisOrd);
+    }
 
     private static boolean isValid(String line) {
         String[] input = line.split(",");
