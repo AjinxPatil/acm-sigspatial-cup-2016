@@ -6,14 +6,13 @@ import java.io.Serializable;
  * Cell
  *
  * @author Ajinkya Patil
- * @version 1.0
+ * @version 1.1
  * @since 1.0
  */
 public class Cell implements Serializable {
     private int x;
     private int y;
     private int z;
-    private int value;
 
     public Cell() {
     }
@@ -49,12 +48,9 @@ public class Cell implements Serializable {
         this.z = z;
     }
 
-    public int getValue() {
-        return value;
-    }
-
-    public void setValue(int value) {
-        this.value = value;
+    @Override
+    public String toString() {
+        return "(" + x + ", " + y + ", " + z + ")";
     }
     
     @Override

@@ -3,7 +3,6 @@ package com.giscup2016;
 import org.apache.spark.SparkConf;
 import org.apache.spark.api.java.JavaRDD;
 import org.apache.spark.api.java.JavaSparkContext;
-import scala.Tuple4;
 
 /**
  *  ******** Deprecated ********
@@ -13,14 +12,14 @@ import scala.Tuple4;
  * @since 1.0
  */
 public class GoHotspotFinder {
-    private static boolean isPointValid(final String line, final Tuple4<Double, Double, Double, Double> envelope) {
+    private static boolean isPointValid(final String line) {
         final String[] columns = line.split(",");
         final Double longi = Double.valueOf(columns[5]);
         final Double lat = Double.valueOf(columns[6]);
-        if (longi < envelope._1() || longi > envelope._2()) {
+        if (longi < GeoHostspotConstants.MIN_LONGITUDE || longi > GeoHostspotConstants.MIN_LONGITUDE) {
             return false;
         }
-        if (lat < envelope._3() || lat > envelope._4()) {
+        if (lat < GeoHostspotConstants.MIN_LATITUDE || lat > GeoHostspotConstants.MIN_LATITUDE) {
             return false;
         }
         return true;
@@ -32,20 +31,16 @@ public class GoHotspotFinder {
         final double lat = Double.parseDouble(columns[6]);
         // Hardcoding time unit as day
         final String day = columns[1].split(" ")[0].split("-")[2];
-
         final int x = (int) ((GeoHostspotConstants.MAX_LONGITUDE - longi) / GeoHostspotConstants.CELL_X);
         final int y = (int) ((GeoHostspotConstants.MAX_LATITUDE - lat) / GeoHostspotConstants.CELL_Y);
-        final int z = Integer.valueOf(day);
+        final int z = Integer.parseInt(day);
         return new Cell(x, y, z);
     }
 
     public static void main(String[] args) {
         final SparkConf conf = new SparkConf().setAppName("geospark-giscup");
         final JavaSparkContext sc = new JavaSparkContext(conf);
-        Tuple4<Double, Double, Double, Double> envelope = new Tuple4<>(GeoHostspotConstants.MIN_LONGITUDE,
-                GeoHostspotConstants.MAX_LONGITUDE, GeoHostspotConstants.MIN_LATITUDE, GeoHostspotConstants.MAX_LATITUDE);
-
-        final JavaRDD<Cell> cabdata = sc.textFile("input").filter(line -> isPointValid(line, envelope)).map(line ->
+        final JavaRDD<Cell> cabdata = sc.textFile("input").filter(line -> isPointValid(line)).map(line ->
                 constructCell(line));
     }
 }
