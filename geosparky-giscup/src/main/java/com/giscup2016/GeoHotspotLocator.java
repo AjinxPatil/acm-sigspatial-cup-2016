@@ -1,3 +1,4 @@
+
 package com.giscup2016;
 
 import java.io.Serializable;
@@ -30,15 +31,16 @@ public class GeoHotspotLocator {
 	
     public static void main(String[] args) {
         // TODO: Remove config
-        final SparkConf conf = new SparkConf().setAppName("geosparky-giscup")
-                .setMaster("local[1]").set("spark.driver.host", "127.0.0.1");
+        final SparkConf conf = new SparkConf().setAppName("geosparky-giscup");
+                //.setMaster("local[1]").set("spark.driver.host", "127.0.0.1");
         final JavaSparkContext sc = new JavaSparkContext(conf);
-        final JavaPairRDD<Cell, Long> cellAttrs = sc.textFile("yellow_tripdata_2015-01.csv", 200)
+        final JavaPairRDD<Cell, Long> cellAttrs = sc.textFile(args[0], 200)
                 .mapToPair(line -> new Tuple2<>(createCell(line), 1L))
                 .filter(tuple -> isPointValid(tuple._1()))
-                .reduceByKey((x, y) -> x + y);
+                .reduceByKey((x, y) -> x + y)
+                .cache();
         // Broadcast N
-        final Broadcast<Integer> broadcastN = sc.broadcast(GeoHotspotConstants.gridCells());
+        final Broadcast<Integer> broadcastN = sc.broadcast(68200);
         
         // Calculate XBar and broadcast
         final Double xBar = calculateXBar(cellAttrs, broadcastN);
@@ -53,13 +55,15 @@ public class GeoHotspotLocator {
                 broadcastXBar, broadcastN));
         List<Tuple2<Cell, Double>> getisOrdTopFifty = getisOrd.top(50, new GetisOrdComparator());
         final JavaRDD<Tuple2<Cell, Double>> getisOrd50 = sc.parallelize(getisOrdTopFifty);
-        getisOrd50.saveAsTextFile("result");
+        getisOrd50.saveAsTextFile(args[1]);
         sc.close();
+        System.out.println(GeoHotspotConstants.gridColumns()+" "+GeoHotspotConstants.gridRows()+" "+GeoHotspotConstants.gridCells());
+        System.out.println(GeoHotspotConstants.DAYS_MAX);
     }
 
     private static List<Tuple2<Cell, Long>> getCellNeighborAttrValueList(final Cell cell, final Long attrVal) {
-        final int rows = GeoHotspotConstants.gridRows();
-        final int columns = GeoHotspotConstants.gridColumns();
+        final int rows = 54;
+        final int columns = 39;
         final List<Tuple2<Cell, Long>> neighborAttrValueList = new ArrayList<>();
         final int x = cell.getX();
         final int y = cell.getY();
@@ -67,7 +71,7 @@ public class GeoHotspotLocator {
         for (int i = x - 1; i <= x + 1; i++) {
             for (int j = y - 1; j <= y + 1; j++) {
                 for (int k = z - 1; k <= z + 1; k++) {
-                    if (i >= 0 && i <= rows && j >= 0 && j <= columns && k >= 1 && k <= GeoHotspotConstants.DAYS_MAX) {
+                    if (i >= 0 && i <= rows && j >= 0 && j <= columns && k >= 1 && k <= 31) {
                         neighborAttrValueList.add(new Tuple2<>(new Cell(i, j, k), attrVal));
                     }
                 }
@@ -105,8 +109,8 @@ public class GeoHotspotLocator {
     }
 
     private static boolean isPointValid(final Cell cell) {
-        return cell.getX() >= 0 && cell.getX() <= GeoHotspotConstants.gridColumns()
-                && cell.getY() >= 0 && cell.getY() <= GeoHotspotConstants.gridRows();
+        return cell.getX() >= 0 && cell.getX() <= 39
+                && cell.getY() >= 0 && cell.getY() <= 54;
     }
 
     private static Cell createCell(final String line) {
