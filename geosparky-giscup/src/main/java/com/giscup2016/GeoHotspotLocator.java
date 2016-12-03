@@ -118,8 +118,7 @@ public class GeoHotspotLocator {
     private static Cell createCell(final String line) {
         final String[] fields = line.split(",");
         final int x = (int) Math.floor(100.0 * (Double.parseDouble(fields[6]) - GeoHotspotConstants.LATITUDE_MIN));
-        final int y = (int) Math.floor(100.0 * Math.abs(Double.parseDouble(fields[5]) - GeoHotspotConstants
-                .LONGITUDE_MIN));
+        final int y = (int) (GeoHotspotConstants.LONGITUDE_MIN * -100.0) + (int) (100.0 * Double.parseDouble(fields[5]));
         final int z = Integer.parseInt(fields[1].split(" ")[0].split("-")[2]);
         return new Cell(x, y, z);
     }
