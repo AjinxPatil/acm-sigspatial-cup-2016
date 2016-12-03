@@ -34,6 +34,7 @@ public class GeoHotspotLocator {
         final SparkConf conf = new SparkConf().setAppName("geosparky-giscup");
                 //.setMaster("local[1]").set("spark.driver.host", "127.0.0.1");
         final JavaSparkContext sc = new JavaSparkContext(conf);
+        //final JavaPairRDD<Cell, Long> cellAttrs = sc.textFile("yellow_tripdata_2015-01.csv", 200)
         final JavaPairRDD<Cell, Long> cellAttrs = sc.textFile(args[0], 200)
                 .mapToPair(line -> new Tuple2<>(createCell(line), 1L))
                 .filter(tuple -> isPointValid(tuple._1()))
@@ -55,6 +56,7 @@ public class GeoHotspotLocator {
                 broadcastXBar, broadcastN));
         List<Tuple2<Cell, Double>> getisOrdTopFifty = getisOrd.top(50, new GetisOrdComparator());
         final JavaRDD<Tuple2<Cell, Double>> getisOrd50 = sc.parallelize(getisOrdTopFifty);
+        //getisOrd50.saveAsTextFile("output");
         getisOrd50.saveAsTextFile(args[1]);
         sc.close();
         System.out.println(GeoHotspotConstants.gridColumns()+" "+GeoHotspotConstants.gridRows()+" "+GeoHotspotConstants.gridCells());
