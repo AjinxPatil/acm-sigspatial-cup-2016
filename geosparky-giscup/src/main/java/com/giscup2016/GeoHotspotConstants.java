@@ -1,12 +1,14 @@
 package com.giscup2016;
 
+import java.io.Serializable;
+
 /**
  * Constants class for GeoHotspotLocator
  *
  * @version 1.0
  * @since 1.0
  */
-public class GeoHotspotConstants {
+public class GeoHotspotConstants implements Serializable {
     public static final int LONGITUDE_MIN = -7425;
     public static final int LONGITUDE_MAX = -7370;
     public static final int LATITUDE_MIN = 4050;

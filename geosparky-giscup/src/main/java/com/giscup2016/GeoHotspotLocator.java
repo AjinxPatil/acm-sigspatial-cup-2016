@@ -17,7 +17,7 @@ import java.util.List;
  * @version 1.0
  * @since 1.0
  */
-public class GeoHotspotLocator {
+public class GeoHotspotLocator implements Serializable {
 
     private static class GetisOrdComparator implements Serializable, Comparator<Tuple2<Cell, Double>> {
         @Override
