@@ -72,7 +72,7 @@ public class Cell implements Serializable {
 
     @Override
     public String toString() {
-        return "(" + x + ", " + y + ", " + z + ")";
+        return "(" + -(7425-y) + ", " + (x+4050) + ", " + (z-1) + ")";
     }
 
     @Override
