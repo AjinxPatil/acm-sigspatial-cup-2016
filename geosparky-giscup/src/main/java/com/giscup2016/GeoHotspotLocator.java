@@ -31,12 +31,12 @@ public class GeoHotspotLocator {
 	
     public static void main(String[] args) {
         // TODO: Remove config
-        final SparkConf conf = new SparkConf().setAppName("geosparky-giscup");
-                //.setMaster("local[1]").set("spark.driver.host", "127.0.0.1");
+        final SparkConf conf = new SparkConf().setAppName("geosparky-giscup")
+                .setMaster("local[1]").set("spark.driver.host", "127.0.0.1");
         final JavaSparkContext sc = new JavaSparkContext(conf);
-        //final JavaPairRDD<Cell, Long> cellAttrs = sc.textFile("yellow_tripdata_2015-01.csv", 200)
-        final JavaPairRDD<Cell, Long> cellAttrs = sc.textFile(args[0], 200)
-                .mapToPair(line -> new Tuple2<>(createCell(line), 1L))
+        final JavaPairRDD<Cell, Long> cellAttrs = sc.textFile("yellow_tripdata_2015-01.csv", 100)
+        //final JavaPairRDD<Cell, Long> cellAttrs = sc.textFile(args[0], 200)
+        		.mapToPair(line -> new Tuple2<>(createCell(line), 1L))
                 .filter(tuple -> isPointValid(tuple._1()))
                 .reduceByKey((x, y) -> x + y)
                 .cache();
@@ -56,11 +56,9 @@ public class GeoHotspotLocator {
                 broadcastXBar, broadcastN));
         List<Tuple2<Cell, Double>> getisOrdTopFifty = getisOrd.top(50, new GetisOrdComparator());
         final JavaRDD<Tuple2<Cell, Double>> getisOrd50 = sc.parallelize(getisOrdTopFifty);
-        //getisOrd50.saveAsTextFile("output");
-        getisOrd50.saveAsTextFile(args[1]);
+        getisOrd50.saveAsTextFile("output");
+        //getisOrd50.saveAsTextFile(args[1]);
         sc.close();
-        System.out.println(GeoHotspotConstants.gridColumns()+" "+GeoHotspotConstants.gridRows()+" "+GeoHotspotConstants.gridCells());
-        System.out.println(GeoHotspotConstants.DAYS_MAX);
     }
 
     private static List<Tuple2<Cell, Long>> getCellNeighborAttrValueList(final Cell cell, final Long attrVal) {
@@ -91,7 +89,7 @@ public class GeoHotspotLocator {
     private static Double calculateSValue(final JavaPairRDD<Cell, Long> cellAttrValues, Broadcast<Double> broadcastXBar, Broadcast<Integer> broadcastN) {
         final JavaRDD<Long> attrValues = cellAttrValues.map(a -> a._2());
         final Long netAttrSquared = attrValues.map(a -> a * a).reduce((a, b) -> a + b);
-        return Math.sqrt(netAttrSquared / (1.0 * broadcastN.getValue()) - broadcastXBar.getValue());
+        return Math.sqrt(netAttrSquared / (1.0 * broadcastN.getValue()) - Math.pow(broadcastXBar.getValue(), 2));
     }
 
     private static Double calculateXBar(final JavaPairRDD<Cell, Long> cellAttrValues, Broadcast<Integer> broadcastN) {
@@ -106,7 +104,8 @@ public class GeoHotspotLocator {
         final Double getisOrd = (getisOrdParameters._2() - (broadcastXBar.value() * numberOfNeighbours)) /
                 (broadcastS.value() * Math.sqrt(((broadcastN.value() * numberOfNeighbours) - (numberOfNeighbours *
                         numberOfNeighbours)) /
-                        (broadcastN.value() - 1)));
+                        (broadcastN.value() - 1.0)));
+        
         return new Tuple2<>(getisOrdParameters._1(), getisOrd);
     }
 
@@ -118,7 +117,7 @@ public class GeoHotspotLocator {
     private static Cell createCell(final String line) {
         final String[] fields = line.split(",");
         final int x = (int) Math.floor(100.0 * (Double.parseDouble(fields[6]) - GeoHotspotConstants.LATITUDE_MIN));
-        final int y = (int) (GeoHotspotConstants.LONGITUDE_MIN * -100.0) + (int) (100.0 * Double.parseDouble(fields[5]));
+        final int y = (int) Math.floor(100.0 * (Double.parseDouble(fields[5]) - GeoHotspotConstants.LONGITUDE_MIN));
         final int z = Integer.parseInt(fields[1].split(" ")[0].split("-")[2]);
         return new Cell(x, y, z);
     }
